@@ -1,0 +1,137 @@
+/* Estilos base para geração de PDF - Copiado do TipTap do Frontend */
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.8;
+  color: #1f2937;
+  margin: 0;
+  padding: 0;
+}
+
+/* Parágrafos */
+p {
+  color: #1f2937;
+  margin-bottom: 1rem;
+  margin-top: 0;
+}
+
+/* Títulos */
+h1,
+h2,
+h3 {
+  color: #1f2937 !important;
+  font-weight: 700 !important;
+  margin-top: 2rem !important;
+  margin-bottom: 1.5rem !important;
+  line-height: 1.3 !important;
+}
+
+h1 {
+  font-size: 28px !important;
+  letter-spacing: -0.02em !important;
+}
+
+h2 {
+  font-size: 22px !important;
+  letter-spacing: -0.01em !important;
+}
+
+h3 {
+  font-size: 19px !important;
+}
+
+/* Listas */
+ul,
+ol {
+  color: #1f2937;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+  list-style-position: outside;
+}
+
+ul {
+  list-style-type: disc;
+}
+
+ol {
+  list-style-type: decimal;
+}
+
+li {
+  color: #1f2937;
+  margin-bottom: 0.5rem;
+}
+
+/* Citações */
+blockquote {
+  border-left: 3px solid #cbd5e1;
+  padding-left: 1.5rem;
+  margin-left: 0;
+  margin-bottom: 1rem;
+  color: #1f2937;
+  font-style: normal;
+}
+
+/* Linha horizontal */
+hr {
+  border: none;
+  border-top: 2px solid #e5e7eb;
+  margin: 2rem 0;
+}
+
+/* Negrito e itálico */
+strong {
+  color: #1f2937;
+  font-weight: 700;
+}
+
+em {
+  color: #1f2937;
+  font-style: italic;
+}
+
+/* Alinhamento de texto */
+[style*="text-align: left"] {
+  text-align: left !important;
+}
+
+[style*="text-align: center"] {
+  text-align: center !important;
+}
+
+[style*="text-align: right"] {
+  text-align: right !important;
+}
+
+[style*="text-align: justify"] {
+  text-align: justify !important;
+}
+
+/* Highlights */
+mark {
+  background-color: #fef3c7;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.125rem;
+}
+
+/* Logo header */
+header {
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+}
+
+header img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Footer paginação */
+footer {
+  font-size: 10px;
+  color: #666666;
+  text-align: center;
+  margin-top: 20px;
+}
