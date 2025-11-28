@@ -15,12 +15,15 @@
   "dependencies": {
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "puppeteer": "^24.31.0"
+    "handlebars": "^4.7.8",
+    "puppeteer": "^24.31.0",
+    "wkhtmltopdf": "^0.4.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.5",
     "@types/node": "^24.10.1",
+    "@types/wkhtmltopdf": "^0.3.9",
     "nodemon": "^3.1.11",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"

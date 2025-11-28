@@ -6,6 +6,8 @@ services:
       - PORT=3001
       - PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
       - PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+    ports:
+      - "3001:3001"
     networks:
       - externa
       - interna

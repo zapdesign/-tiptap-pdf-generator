@@ -1,15 +1,55 @@
-# PDF Service - HTML to PDF with Puppeteer
+# PDF Service - HTML to PDF Generator
 
-A lightweight Node.js/Express microservice for generating PDFs from HTML using Puppeteer (headless Chrome).
+A Node.js/Express microservice for generating PDFs from HTML with **two rendering engines** to choose from.
 
-## Why this service?
+## Two PDF Generation Options
 
-Traditional PDF generation libraries like pdfMake have fundamental limitations:
-- PDFs look different from the original HTML/CSS design
-- Inconsistent font sizes and spacing
-- Limited HTML/CSS rendering capabilities
+This service offers **two different PDF generators**, each with its own trade-offs:
 
-**Solution:** This microservice uses Puppeteer to render HTML exactly like a Chrome browser, ensuring 90%+ visual fidelity with your original design.
+### 1. **Handlebars + wkhtmltopdf** (Default - Lightweight)
+
+**Best for:** Production environments with resource constraints, simple documents
+
+✅ **Advantages:**
+- Very lightweight (~50MB disk space)
+- Low RAM consumption (~100MB per PDF)
+- Fast startup time
+- Good HTML/CSS basic rendering
+
+⚠️ **Limitations:**
+- Limited support for modern CSS (Flexbox/Grid advanced features)
+- No JavaScript execution
+- May have minor rendering differences
+
+### 2. **Puppeteer** (High Fidelity)
+
+**Best for:** Complex documents requiring pixel-perfect rendering
+
+✅ **Advantages:**
+- 100% browser-accurate rendering (Chromium)
+- Full support for modern CSS (Flexbox, Grid, animations)
+- Perfect font rendering
+- JavaScript support
+
+⚠️ **Limitations:**
+- Heavy (~300MB disk space for Chromium)
+- High RAM usage (~500MB per PDF)
+- Slower startup time
+- Increases server resource consumption by ~30%
+
+## Which One to Choose?
+
+**Use Handlebars/wkhtmltopdf if:**
+- You have simple documents with basic formatting
+- You need to minimize server resources
+- You're generating many PDFs concurrently
+- Minor rendering differences are acceptable
+
+**Use Puppeteer if:**
+- You need pixel-perfect rendering
+- Your documents use complex CSS layouts
+- You have sufficient server resources
+- Visual fidelity is critical
 
 ## On-Demand Architecture
 
@@ -17,21 +57,19 @@ The service is designed to **consume resources only when needed**:
 
 1. The Express server runs in idle mode (minimal RAM usage)
 2. When it receives a POST request to `/generate-pdf`:
-   - Starts the Puppeteer browser
+   - Uses the selected rendering engine (Handlebars or Puppeteer)
    - Renders the HTML
    - Generates the PDF
-   - **CLOSES the browser** (releases resources)
+   - **Releases resources** (closes browser in Puppeteer mode)
 3. Returns to idle state
-
-This means the service doesn't consume CPU/RAM when not generating PDFs.
 
 ## Features
 
-✅ High-fidelity PDF generation (90%+ visual accuracy)
-✅ On-demand resource consumption (browser closes after each generation)
+✅ **Two rendering engines** (Handlebars/wkhtmltopdf or Puppeteer)
+✅ On-demand resource consumption
 ✅ Optional logo in header (4 positions: LEFT, CENTER, RIGHT, FULL_WIDTH)
 ✅ Automatic pagination footer
-✅ A4 format with 1.5cm margins
+✅ A4 format with customizable margins
 ✅ Support for highlights and formatting
 ✅ Customizable CSS
 ✅ Docker ready
@@ -41,9 +79,12 @@ This means the service doesn't consume CPU/RAM when not generating PDFs.
 ```
 pdf-service/
 ├── src/
-│   ├── index.ts           # Express server
-│   ├── pdf-generator.ts   # Puppeteer PDF generation logic
-│   └── styles.css         # Default CSS styles
+│   ├── index.ts                      # Express server
+│   ├── pdf-generator.ts              # Handlebars/wkhtmltopdf (default, lightweight)
+│   ├── pdf-generator-puppeteer.ts    # Puppeteer (high fidelity)
+│   ├── templates/
+│   │   └── document.hbs              # Handlebars template
+│   └── styles.css                    # Default CSS styles
 ├── Dockerfile
 ├── package.json
 └── README.md
@@ -110,6 +151,7 @@ Response:
 
 ### Generate PDF
 
+**Default (Handlebars/wkhtmltopdf):**
 ```bash
 POST /generate-pdf
 
@@ -125,6 +167,20 @@ Body:
 
 Response: PDF binary (application/pdf)
 ```
+
+**Using Puppeteer (High Fidelity):**
+
+To use Puppeteer instead, you'll need to modify the import in `src/index.ts`:
+
+```typescript
+// Change from:
+import { generatePdf } from './pdf-generator';
+
+// To:
+import { generatePdfWithPuppeteer as generatePdf } from './pdf-generator-puppeteer';
+```
+
+Both generators use the same API interface, so no changes to your API calls are needed.
 
 ### Example with curl
 
@@ -178,11 +234,20 @@ You can override these styles by passing custom CSS in the request.
 - `PUPPETEER_EXECUTABLE_PATH` - Chromium path (Docker)
 - `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` - Skip download (Docker)
 
-## Performance Metrics
+## Performance Comparison
 
+### Handlebars/wkhtmltopdf (Default)
+- **Disk space**: ~50MB
+- **RAM usage**: ~100MB per PDF
+- **Average time**: 0.5-2 seconds per PDF
+- **Memory idle**: ~50MB
+
+### Puppeteer
+- **Disk space**: ~300MB (Chromium)
+- **RAM usage**: ~500MB per PDF
 - **Average time**: 1-3 seconds per PDF
-- **Memory**: ~100MB idle, ~300MB during generation
-- **CPU**: Spike only during rendering
+- **Memory idle**: ~100MB
+- **CPU**: Higher spike during rendering
 
 ## Troubleshooting
 

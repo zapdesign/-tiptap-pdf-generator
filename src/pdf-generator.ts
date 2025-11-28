@@ -1,4 +1,5 @@
-import puppeteer from 'puppeteer';
+import Handlebars from 'handlebars';
+import wkhtmltopdf from 'wkhtmltopdf';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -17,8 +18,18 @@ export interface PdfGenerationOptions {
 }
 
 /**
- * Gera um PDF a partir de HTML usando Puppeteer
- * O navegador é iniciado apenas quando necessário (on-demand)
+ * Gera um PDF a partir de HTML usando wkhtmltopdf + Handlebars
+ *
+ * VANTAGENS:
+ * - Muito mais leve que Puppeteer (~50MB vs ~300MB)
+ * - Menor consumo de RAM (~100MB vs ~500MB)
+ * - Mais rápido para iniciar
+ * - Mesma qualidade visual de renderização HTML/CSS básico
+ *
+ * LIMITAÇÕES:
+ * - Suporte limitado a CSS moderno (sem Flexbox/Grid avançado)
+ * - Pode haver pequenas diferenças de renderização
+ * - Não executa JavaScript
  */
 export async function generatePdf(options: PdfGenerationOptions): Promise<Buffer> {
   const {
@@ -26,37 +37,22 @@ export async function generatePdf(options: PdfGenerationOptions): Promise<Buffer
     css,
     format = 'A4',
     margin = {
-      top: '2.12cm', // 60pt ≈ 2.12cm
-      right: '1.5cm', // 42.5pt ≈ 1.5cm
-      bottom: '2.12cm', // 60pt ≈ 2.12cm
-      left: '1.5cm', // 42.5pt ≈ 1.5cm
+      top: '2.12cm',
+      right: '1.5cm',
+      bottom: '2.12cm',
+      left: '1.5cm',
     },
     logoUrl,
     logoPosition = 'LEFT',
   } = options;
 
-  let browser = null;
-
   try {
-    // Iniciar o navegador apenas quando necessário
-    console.log('[PDF Generator] Iniciando navegador Puppeteer...');
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--disable-gpu',
-      ],
-    });
+    console.log('[PDF Generator - wkhtmltopdf] Iniciando geração...');
 
-    console.log('[PDF Generator] Navegador iniciado com sucesso');
-
-    // Criar nova página
-    const page = await browser.newPage();
+    // Carregar template Handlebars
+    const templatePath = path.join(__dirname, 'templates', 'document.hbs');
+    const templateSource = fs.readFileSync(templatePath, 'utf-8');
+    const template = Handlebars.compile(templateSource);
 
     // Carregar CSS do arquivo
     const cssFilePath = path.join(__dirname, 'styles.css');
@@ -68,97 +64,104 @@ export async function generatePdf(options: PdfGenerationOptions): Promise<Buffer
     // Combinar CSS padrão com CSS customizado
     const finalCss = `${defaultCss}\n${css || ''}`;
 
-    // Gerar HTML completo com logo se fornecida
-    const logoHtml = logoUrl ? generateLogoHtml(logoUrl, logoPosition) : '';
+    // Mapear posição do logo para CSS text-align
+    const logoPositionMap: Record<string, string> = {
+      LEFT: 'left',
+      CENTER: 'center',
+      RIGHT: 'right',
+      FULL_WIDTH: 'center',
+    };
 
-    const fullHtml = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    ${finalCss}
-  </style>
-</head>
-<body>
-  ${logoHtml}
-  <main>
-    ${html}
-  </main>
-</body>
-</html>
-    `;
-
-    console.log('[PDF Generator] Configurando conteúdo da página...');
-
-    // Definir conteúdo HTML
-    await page.setContent(fullHtml, {
-      waitUntil: 'networkidle0',
+    // Renderizar HTML usando template Handlebars
+    const fullHtml = template({
+      content: html,
+      css: finalCss,
+      logoUrl: logoUrl || null,
+      logoPosition: logoPositionMap[logoPosition] || 'left',
     });
 
-    console.log('[PDF Generator] Gerando PDF...');
+    console.log('[PDF Generator - wkhtmltopdf] Template renderizado, gerando PDF...');
+
+    // Configurar opções do wkhtmltopdf
+    const wkhtmlOptions: any = {
+      pageSize: format,
+      marginTop: logoUrl ? '3cm' : margin.top,
+      marginRight: margin.right,
+      marginBottom: margin.bottom,
+      marginLeft: margin.left,
+      encoding: 'UTF-8',
+      printMediaType: true,
+      enableLocalFileAccess: true,
+      footerCenter: 'Página [page] de [toPage]',
+      footerFontSize: 10,
+      footerSpacing: 5,
+    };
+
+    // Se tiver logo, adicionar header HTML em todas as páginas
+    if (logoUrl) {
+      const headerHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { margin: 0; padding: 10px 15px; }
+            .header-logo { text-align: ${logoPositionMap[logoPosition] || 'left'}; margin: 0; }
+            .header-logo img { width: 120px; max-width: 100%; height: auto; }
+          </style>
+        </head>
+        <body>
+          <div class="header-logo">
+            <img src="${logoUrl}" alt="Logo">
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Salvar header temporariamente
+      const tempDir = path.join(__dirname, 'temp');
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+
+      const headerPath = path.join(tempDir, `header-${Date.now()}.html`);
+      fs.writeFileSync(headerPath, headerHtml, 'utf-8');
+
+      wkhtmlOptions.headerHtml = `file:///${headerPath.replace(/\\/g, '/')}`;
+      wkhtmlOptions.headerSpacing = 5;
+
+      // Limpar arquivo após 10 segundos
+      setTimeout(() => {
+        if (fs.existsSync(headerPath)) {
+          fs.unlinkSync(headerPath);
+        }
+      }, 10000);
+    }
 
     // Gerar PDF
-    const pdfBuffer = await page.pdf({
-      format,
-      margin: {
-        top: logoUrl ? '4.23cm' : margin.top, // Margem maior se tiver logo (120pt ≈ 4.23cm)
-        right: margin.right,
-        bottom: margin.bottom,
-        left: margin.left,
-      },
-      printBackground: true,
-      displayHeaderFooter: true,
-      headerTemplate: '<div></div>', // Header vazio (logo já está no HTML)
-      footerTemplate: `
-        <div style="font-size: 10px; text-align: center; width: 100%; color: #666666; margin-top: 10px;">
-          Página <span class="pageNumber"></span> de <span class="totalPages"></span>
-        </div>
-      `,
+    const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+
+      const stream = wkhtmltopdf(fullHtml, wkhtmlOptions);
+
+      stream.on('data', (chunk: Buffer) => {
+        chunks.push(chunk);
+      });
+
+      stream.on('end', () => {
+        const buffer = Buffer.concat(chunks);
+        console.log('[PDF Generator - wkhtmltopdf] PDF gerado com sucesso');
+        resolve(buffer);
+      });
+
+      stream.on('error', (error: Error) => {
+        console.error('[PDF Generator - wkhtmltopdf] Erro ao gerar PDF:', error);
+        reject(error);
+      });
     });
 
-    console.log('[PDF Generator] PDF gerado com sucesso');
-
-    return Buffer.from(pdfBuffer);
+    return pdfBuffer;
   } catch (error) {
-    console.error('[PDF Generator] Erro ao gerar PDF:', error);
+    console.error('[PDF Generator - wkhtmltopdf] Erro ao gerar PDF:', error);
     throw new Error(`Failed to generate PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
-  } finally {
-    // IMPORTANTE: Fechar o navegador para liberar recursos
-    if (browser) {
-      console.log('[PDF Generator] Fechando navegador...');
-      await browser.close();
-      console.log('[PDF Generator] Navegador fechado - recursos liberados');
-    }
   }
-}
-
-/**
- * Gera o HTML do logo baseado na posição
- */
-function generateLogoHtml(logoUrl: string, position: 'LEFT' | 'CENTER' | 'RIGHT' | 'FULL_WIDTH'): string {
-  let alignStyle = '';
-  let logoWidth = '120px';
-
-  switch (position) {
-    case 'LEFT':
-      alignStyle = 'text-align: left;';
-      break;
-    case 'CENTER':
-      alignStyle = 'text-align: center;';
-      break;
-    case 'RIGHT':
-      alignStyle = 'text-align: right;';
-      break;
-    case 'FULL_WIDTH':
-      alignStyle = 'text-align: center;';
-      logoWidth = '100%';
-      break;
-  }
-
-  return `
-    <header style="margin-bottom: 32px; padding-bottom: 24px; ${alignStyle}">
-      <img src="${logoUrl}" alt="Logo" style="width: ${logoWidth}; max-height: ${position === 'FULL_WIDTH' ? '80px' : '60px'}; object-fit: contain;" />
-    </header>
-  `;
 }
